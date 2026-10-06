@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { TrendingUp } from "lucide-react";
+import { loadState, saveState } from "@/lib/storage";
 
 interface PredictiveAnalyticsProps {
   remainingHours: number;
@@ -26,7 +27,9 @@ const SHIFT_HOURS = {
 };
 
 export default function PredictiveAnalytics({ remainingHours }: PredictiveAnalyticsProps) {
-  const [shifts, setShifts] = useState<ShiftValues>({
+  // Restore manually edited values saved in the browser, if any.
+  const savedPredicted = loadState().predicted;
+  const [shifts, setShifts] = useState<ShiftValues>(() => savedPredicted ?? {
     serviceWeek: 0,
     serviceWeekend: 0,
     jeopardyWeek: 0,
@@ -34,6 +37,9 @@ export default function PredictiveAnalytics({ remainingHours }: PredictiveAnalyt
     callNight: 0,
     johnMuir: 0,
   });
+  const [edited, setEdited] = useState<boolean>(() => savedPredicted !== null);
+  // Keep restored values on first load instead of overwriting them with fresh suggestions.
+  const skipInitialRecalc = useRef<boolean>(savedPredicted !== null);
 
   // Calculate initial suggestions based on remaining hours
   const calculateInitialSuggestions = (remaining: number): ShiftValues => {
@@ -70,8 +76,18 @@ export default function PredictiveAnalytics({ remainingHours }: PredictiveAnalyt
 
   // Update shifts when remaining hours changes
   useEffect(() => {
+    if (skipInitialRecalc.current) {
+      skipInitialRecalc.current = false;
+      return;
+    }
     setShifts(calculateInitialSuggestions(remainingHours));
+    setEdited(false);
   }, [remainingHours]);
+
+  // Save manual edits to the browser (suggestions alone are recomputed, not stored).
+  useEffect(() => {
+    saveState({ predicted: edited ? shifts : null });
+  }, [shifts, edited]);
 
   const handleShiftChange = (field: keyof ShiftValues, newValue: number) => {
     const value = Math.max(0, Math.floor(newValue));
@@ -81,6 +97,7 @@ export default function PredictiveAnalytics({ remainingHours }: PredictiveAnalyt
       ...prev,
       [field]: value
     }));
+    setEdited(true);
   };
 
   const totalSuggestedHours = 

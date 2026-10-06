@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -7,6 +7,7 @@ import { RotateCcw } from "lucide-react";
 import ShiftInput from "./ShiftInput";
 import ResultsDisplay from "./ResultsDisplay";
 import PredictiveAnalytics from "./PredictiveAnalytics";
+import { loadState, saveState, clearState, DEFAULT_STATE } from "@/lib/storage";
 
 interface ShiftCategory {
   label: string;
@@ -40,11 +41,18 @@ const JOHN_MUIR_SHIFTS: ShiftCategory[] = [
 const FULL_TIME_ANNUAL_HOURS = 1750;
 
 export default function ShiftCalculator() {
-  const [fte, setFte] = useState<number>(1.0);
-  const [weekdayShifts, setWeekdayShifts] = useState<number[]>([0, 0, 0, 0]);
-  const [weekendShifts, setWeekendShifts] = useState<number[]>([0, 0, 0, 0]);
-  const [conversionShifts, setConversionShifts] = useState<number[]>([0, 0]);
-  const [johnMuirShifts, setJohnMuirShifts] = useState<number[]>([0]);
+  const [fte, setFte] = useState<number>(() => loadState().fte);
+  const [weekdayShifts, setWeekdayShifts] = useState<number[]>(() => loadState().weekdayShifts);
+  const [weekendShifts, setWeekendShifts] = useState<number[]>(() => loadState().weekendShifts);
+  const [conversionShifts, setConversionShifts] = useState<number[]>(() => loadState().conversionShifts);
+  const [johnMuirShifts, setJohnMuirShifts] = useState<number[]>(() => loadState().johnMuirShifts);
+  // Bumped on Reset so Predictive Analytics starts over from fresh suggestions.
+  const [resetCount, setResetCount] = useState(0);
+
+  // Save entries to the browser whenever they change.
+  useEffect(() => {
+    saveState({ fte, weekdayShifts, weekendShifts, conversionShifts, johnMuirShifts });
+  }, [fte, weekdayShifts, weekendShifts, conversionShifts, johnMuirShifts]);
 
   const updateWeekdayShift = (index: number, value: number) => {
     const newShifts = [...weekdayShifts];
@@ -71,11 +79,13 @@ export default function ShiftCalculator() {
   };
 
   const handleReset = () => {
-    setFte(1.0);
-    setWeekdayShifts([0, 0, 0, 0]);
-    setWeekendShifts([0, 0, 0, 0]);
-    setConversionShifts([0, 0]);
-    setJohnMuirShifts([0]);
+    clearState();
+    setFte(DEFAULT_STATE.fte);
+    setWeekdayShifts([...DEFAULT_STATE.weekdayShifts]);
+    setWeekendShifts([...DEFAULT_STATE.weekendShifts]);
+    setConversionShifts([...DEFAULT_STATE.conversionShifts]);
+    setJohnMuirShifts([...DEFAULT_STATE.johnMuirShifts]);
+    setResetCount((c) => c + 1);
   };
 
   const handleFteChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -243,7 +253,7 @@ export default function ShiftCalculator() {
           expectedAnnualHours={expectedAnnualHours}
         />
 
-        <PredictiveAnalytics remainingHours={remainingHours} />
+        <PredictiveAnalytics key={resetCount} remainingHours={remainingHours} />
       </div>
     </div>
   );
